@@ -202,6 +202,8 @@ body{font-family:'DM Sans',sans-serif;background:var(--cream);color:var(--ink);m
 .cal-cell.active{color:var(--ink);}
 .cal-cell.trained{background:var(--edit);color:white;font-weight:700;cursor:pointer;}
 .cal-cell.trained:hover{background:#2d4ae0;}
+.cal-cell.trained.complete{background:linear-gradient(135deg,#1a9e4a,#27ae60);box-shadow:0 2px 8px rgba(39,174,96,.4);}
+.cal-cell.trained.complete:hover{background:linear-gradient(135deg,#158a3e,#1e9b52);}
 .cal-cell.today{box-shadow:0 0 0 2px var(--accent);}
 .cal-cell.today.trained{box-shadow:0 0 0 2px var(--accent);}
 .cal-dot{position:absolute;bottom:3px;left:50%;transform:translateX(-50%);width:4px;height:4px;border-radius:50%;background:rgba(255,255,255,.7);}
@@ -209,7 +211,16 @@ body{font-family:'DM Sans',sans-serif;background:var(--cream);color:var(--ink);m
 .cal-legend-item{display:flex;align-items:center;gap:.35rem;font-size:.65rem;color:var(--muted);}
 .cal-legend-dot{width:10px;height:10px;border-radius:50%;}
 
-/* DAY DATE ROW */
+/* MOTIVATION BANNER */
+.motivation-banner{width:100%;text-align:center;padding:.3rem .5rem;border-radius:8px;font-size:.72rem;font-weight:600;margin-top:.1rem;}
+.mot-fire{background:linear-gradient(135deg,#fff3e0,#ffe0b2);color:#e65100;border:1px solid #ffcc80;}
+.mot-great{background:linear-gradient(135deg,#e8f5e9,#c8e6c9);color:#2e7d32;border:1px solid #a5d6a7;}
+.mot-start{background:linear-gradient(135deg,#e8f0ff,#d0deff);color:#1a3a9e;border:1px solid #b0c4ff;}
+.mot-done{background:linear-gradient(135deg,#f3e5f5,#e1bee7);color:#6a1b9a;border:1px solid #ce93d8;}
+
+/* WEEK SELECT completed weeks */
+.week-sel option.complete{font-weight:700;}
+
 .day-date-row{display:flex;align-items:center;gap:.5rem;flex-wrap:wrap;background:var(--card);border-radius:12px;border:1px solid #eee;box-shadow:var(--shadow);padding:.65rem .9rem;margin-top:.55rem;}
 .day-date-lbl{font-size:.63rem;letter-spacing:.1em;text-transform:uppercase;color:var(--muted);font-weight:700;white-space:nowrap;}
 .day-date-inp{padding:.28rem .55rem;border:1.5px solid #ddd;border-radius:8px;font-family:'DM Sans',sans-serif;font-size:.76rem;color:var(--ink);background:white;cursor:pointer;outline:none;}
@@ -243,6 +254,7 @@ body{font-family:'DM Sans',sans-serif;background:var(--cream);color:var(--ink);m
 <div class="week-bar">
   <span class="ws-lbl">Semana:</span>
   <select class="week-sel" id="wksel" onchange="setWeek(parseInt(this.value))"></select>
+  <div class="motivation-banner" id="motivation-banner"></div>
 </div>
 
 <div class="nav-wrap">
@@ -303,11 +315,21 @@ body{font-family:'DM Sans',sans-serif;background:var(--cream);color:var(--ink);m
     <div class="cal-grid" id="cal-grid"></div>
     <div class="cal-legend">
       <div class="cal-legend-item"><div class="cal-legend-dot" style="background:var(--edit)"></div>Día entrenado</div>
+      <div class="cal-legend-item"><div class="cal-legend-dot" style="background:linear-gradient(135deg,#1a9e4a,#27ae60)"></div>Semana completa ✅</div>
       <div class="cal-legend-item"><div class="cal-legend-dot" style="background:transparent;box-shadow:0 0 0 2px var(--accent);"></div>Hoy</div>
     </div>
-    <button onclick="exportExcel()" style="margin-top:.9rem;width:100%;padding:.6rem;border-radius:10px;background:var(--ink);color:var(--cream);border:none;font-family:'DM Sans',sans-serif;font-size:.78rem;font-weight:700;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:.4rem;transition:opacity .2s;" onmouseover="this.style.opacity='.85'" onmouseout="this.style.opacity='1'">
-      📥 Exportar entrenamiento a Excel
+    <button onclick="exportExcel()" style="margin-top:.9rem;width:100%;padding:.6rem;border-radius:10px;background:#1d6f42;color:white;border:none;font-family:'DM Sans',sans-serif;font-size:.78rem;font-weight:700;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:.4rem;">
+      📊 Exportar a Excel (.xlsx)
     </button>
+    <div style="display:flex;gap:.5rem;margin-top:.5rem;">
+      <button onclick="backupData()" style="flex:1;padding:.55rem;border-radius:10px;background:var(--edit);color:white;border:none;font-family:'DM Sans',sans-serif;font-size:.75rem;font-weight:700;cursor:pointer;">
+        💾 Backup datos
+      </button>
+      <label style="flex:1;padding:.55rem;border-radius:10px;background:var(--ink);color:var(--cream);border:none;font-family:'DM Sans',sans-serif;font-size:.75rem;font-weight:700;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:.3rem;">
+        📂 Restaurar datos
+        <input type="file" accept=".json" id="restore-inp" style="display:none" onchange="restoreData(this)">
+      </label>
+    </div>
   </div>
 </div>
 
@@ -408,18 +430,77 @@ function gwm(w){
 
 function fmtRest(s){ return s>=60 ? Math.floor(s/60)+'min'+(s%60?' '+s%60+'s':'') : s+'s'; }
 
+// ── WEEK COMPLETION ───────────────────────────────────────────────────────────
+function isWeekComplete(w){
+  // A week is complete if all 4 days have at least one exercise marked done
+  for(var di=0;di<DAYS.length;di++){
+    var dayDone=DAYS[di].exercises.some(function(ex){ return gex(w,ex.id).done; });
+    if(!dayDone) return false;
+  }
+  return true;
+}
+
+function getCurrentStreak(){
+  // Count consecutive complete weeks ending at or before cw
+  var streak=0;
+  for(var w=cw;w>=1;w--){
+    if(isWeekComplete(w)) streak++;
+    else break;
+  }
+  return streak;
+}
+
+function getTotalComplete(){
+  var total=0;
+  for(var w=1;w<=TOTAL_WEEKS;w++){ if(isWeekComplete(w)) total++; }
+  return total;
+}
+
+function updateMotivation(){
+  var banner=document.getElementById('motivation-banner');
+  if(!banner) return;
+  var streak=getCurrentStreak();
+  var total=getTotalComplete();
+  var cwComplete=isWeekComplete(cw);
+  var msg='', cls='';
+
+  if(cwComplete){
+    msg='🏆 ¡Semana '+cw+' completada! Llevas '+total+' semanas completas en total.';
+    cls='mot-done';
+  } else if(streak>=3){
+    msg='🔥 ¡'+streak+' semanas seguidas! Estás imparable.';
+    cls='mot-fire';
+  } else if(streak>=1){
+    msg='💪 ¡'+streak+' semana'+(streak>1?'s':'')+' seguida'+(streak>1?'s':'')+' completada'+(streak>1?'s':'')+' — sigue así!';
+    cls='mot-great';
+  } else if(total>0){
+    msg='⚡ '+total+' semana'+(total>1?'s':'')+' completa'+(total>1?'s':'')+' en total — ¡a por esta!';
+    cls='mot-start';
+  } else {
+    msg='🌱 ¡Empieza fuerte! Completa los 4 días de esta semana.';
+    cls='mot-start';
+  }
+  banner.textContent=msg;
+  banner.className='motivation-banner '+cls;
+}
+
 // INIT
 function init(){
   var sel = document.getElementById('wksel');
   for(var w=1;w<=TOTAL_WEEKS;w++){
     var o = document.createElement('option');
-    o.value=w; o.textContent='Semana '+w; sel.appendChild(o);
+    var complete=isWeekComplete(w);
+    o.value=w;
+    o.textContent=(complete?'✅ ':'')+'Semana '+w;
+    if(complete) o.className='complete';
+    sel.appendChild(o);
   }
   sel.value = cw;
+  updateMotivation();
   renderAll();
 }
 
-function setWeek(w){ cw=w; document.getElementById('wksel').value=w; renderAll(); }
+function setWeek(w){ cw=w; document.getElementById('wksel').value=w; updateMotivation(); renderAll(); }
 
 function saveDayDate(di){
   var inp=document.getElementById('daydate-'+di);
@@ -814,26 +895,38 @@ function buildCalendar(){
     }
   }
 
+  // Collect complete weeks' dates for shading
+  var completeWeekDates={};
+  for(var w=1;w<=TOTAL_WEEKS;w++){
+    if(isWeekComplete(w)){
+      var wdates=(gwm(w).dates||[]);
+      for(var di=0;di<4;di++){
+        if(wdates[di]) completeWeekDates[wdates[di]]=true;
+      }
+    }
+  }
+
   var today=new Date(); today.setHours(0,0,0,0);
   var firstDay=new Date(calYear,calMonth,1);
-  // Monday-based offset
   var startOffset=(firstDay.getDay()+6)%7;
   var daysInMonth=new Date(calYear,calMonth+1,0).getDate();
 
-  // Empty cells before first day
   for(var i=0;i<startOffset;i++){
     var empty=document.createElement('div'); empty.className='cal-cell'; grid.appendChild(empty);
   }
 
-  // Day cells
   for(var day=1;day<=daysInMonth;day++){
     var cell=document.createElement('div');
     var dateStr=calYear+'-'+(calMonth+1<10?'0':'')+(calMonth+1)+'-'+(day<10?'0':'')+day;
     var cellDate=new Date(calYear,calMonth,day);
     var isTrained=trainedDates.hasOwnProperty(dateStr);
+    var isComplete=completeWeekDates.hasOwnProperty(dateStr);
     var isToday=cellDate.getTime()===today.getTime();
 
-    cell.className='cal-cell active'+(isTrained?' trained':'')+(isToday?' today':'');
+    cell.className='cal-cell active'
+      +(isComplete?' trained complete':'')
+      +(!isComplete&&isTrained?' trained':'')
+      +(isToday?' today':'');
     cell.textContent=day;
 
     if(isTrained){
@@ -856,73 +949,131 @@ function calMove(dir){
   buildCalendar();
 }
 
-// Rebuild calendar after any db save so new trained dates appear
+// Rebuild calendar + motivation after any db save
 var origSdb=sdb;
-sdb=function(){origSdb();buildCalendar();};
+sdb=function(){
+  origSdb();
+  buildCalendar();
+  updateMotivation();
+  // refresh week select checkmarks
+  var sel=document.getElementById('wksel');
+  if(sel){
+    var opts=sel.querySelectorAll('option');
+    for(var i=0;i<opts.length;i++){
+      var w=parseInt(opts[i].value);
+      var complete=isWeekComplete(w);
+      opts[i].textContent=(complete?'✅ ':'')+'Semana '+w;
+    }
+  }
+};
 
-// ── EXPORT TO EXCEL ───────────────────────────────────────────────────────────
+// ── EXPORT TO REAL EXCEL ──────────────────────────────────────────────────────
 function exportExcel(){
-  var rows=[];
+  if(typeof XLSX==='undefined'){ toast('⏳ Cargando Excel…'); return; }
+  var wb=XLSX.utils.book_new();
 
-  // Header row
-  rows.push(['Semana','Fecha','Día','Ejercicio','S1 (kg)','S2 (kg)','S3 (kg)','S4 (kg)','Completado','Notas']);
+  // Build data rows
+  var rows=[['Semana','Fecha','Día','Ejercicio','S1 (kg)','S2 (kg)','S3 (kg)','S4 (kg)','Completado','Notas']];
+  var hasAny=false;
 
   for(var w=1;w<=TOTAL_WEEKS;w++){
-    var meta=gwm(w);
-    var hasAnyData=false;
-    for(var i=0;i<ALL_EX.length;i++){
-      var st=gex(w,ALL_EX[i].id);
-      if(st.done||st.weights.some(function(v){return !!v;})||st.note){hasAnyData=true;break;}
-    }
-    if(!hasAnyData) continue; // skip empty weeks
-
-    DAYS.forEach(function(day, di){
+    DAYS.forEach(function(day,di){
       var dayDate=(gwm(w).dates||[])[di]||'';
       day.exercises.forEach(function(ex){
         var st=gex(w,ex.id);
-        var hasData=st.done||st.weights.some(function(v){return !!v;})||st.note;
-        if(!hasData) return;
+        if(!st.done&&!st.weights.some(function(v){return !!v;})&&!st.note) return;
+        hasAny=true;
         rows.push([
-          'Semana '+w,
-          dayDate,
-          'Día '+day.num+': '+day.title,
-          ex.name,
-          st.weights[0]||'',
-          st.weights[1]||'',
-          st.weights[2]||'',
-          st.weights[3]||'',
-          st.done?'✓':'',
-          st.note||''
+          'Semana '+w, dayDate,
+          'Día '+day.num+': '+day.title, ex.name,
+          st.weights[0]||'', st.weights[1]||'', st.weights[2]||'', st.weights[3]||'',
+          st.done?'✓':'', st.note||''
         ]);
       });
     });
   }
 
-  if(rows.length<=1){ toast('⚠️ No hay datos que exportar todavía'); return; }
+  if(!hasAny){ toast('⚠️ No hay datos que exportar todavía'); return; }
 
-  // Build CSV with BOM for Excel UTF-8
-  var bom='\uFEFF';
-  var csv=rows.map(function(r){
-    return r.map(function(cell){
-      var s=String(cell).replace(/"/g,'""');
-      return (s.indexOf(',')>=0||s.indexOf('\n')>=0||s.indexOf('"')>=0)?'"'+s+'"':s;
-    }).join(',');
-  }).join('\n');
+  var ws=XLSX.utils.aoa_to_sheet(rows);
 
-  var blob=new Blob([bom+csv],{type:'text/csv;charset=utf-8;'});
-  var url=URL.createObjectURL(blob);
-  var a=document.createElement('a');
-  a.href=url; a.download='maria_entrenamiento.csv';
-  document.body.appendChild(a); a.click();
-  document.body.removeChild(a); URL.revokeObjectURL(url);
-  toast('✅ Exportado correctamente — ábrelo con Excel');
+  // Column widths
+  ws['!cols']=[{wch:10},{wch:12},{wch:22},{wch:38},{wch:10},{wch:10},{wch:10},{wch:10},{wch:11},{wch:30}];
+
+  // Style header row bold (basic)
+  var range=XLSX.utils.decode_range(ws['!ref']);
+  for(var c=range.s.c;c<=range.e.c;c++){
+    var cell=ws[XLSX.utils.encode_cell({r:0,c:c})];
+    if(cell) cell.s={font:{bold:true},fill:{fgColor:{rgb:'1D6F42'}},font:{bold:true,color:{rgb:'FFFFFF'}}};
+  }
+
+  XLSX.utils.book_append_sheet(wb,ws,'Entrenamiento');
+
+  // Summary sheet — max weight per exercise per week
+  var sumRows=[['Ejercicio'].concat(
+    (function(){ var a=[]; for(var w2=1;w2<=TOTAL_WEEKS;w2++){
+      var hasW=false;
+      for(var i=0;i<ALL_EX.length;i++){var st=gex(w2,ALL_EX[i].id);if(st.weights.some(function(v){return !!v;})){hasW=true;break;}}
+      if(hasW) a.push('Sem '+w2);
+    } return a; })()
+  )];
+  var usedWeeks=sumRows[0].slice(1).map(function(l){return parseInt(l.replace('Sem ',''));});
+  ALL_EX.forEach(function(ex){
+    var row=[ex.name];
+    usedWeeks.forEach(function(w3){
+      var st=gex(w3,ex.id);
+      var nums=st.weights.map(function(v){return parseFloat(v);}).filter(function(n){return !isNaN(n)&&n>0;});
+      row.push(nums.length?Math.max.apply(null,nums):'');
+    });
+    sumRows.push(row);
+  });
+  var ws2=XLSX.utils.aoa_to_sheet(sumRows);
+  ws2['!cols']=[{wch:38}].concat(usedWeeks.map(function(){return {wch:8};}));
+  XLSX.utils.book_append_sheet(wb,ws2,'Progresión');
+
+  XLSX.writeFile(wb,'maria_entrenamiento.xlsx');
+  toast('✅ Excel descargado correctamente');
 }
 
-// ── LOAD CHART.JS THEN START ──────────────────────────────────────────────────
+// ── BACKUP & RESTORE ──────────────────────────────────────────────────────────
+function backupData(){
+  var json=JSON.stringify(db,null,2);
+  var blob=new Blob([json],{type:'application/json'});
+  var url=URL.createObjectURL(blob);
+  var a=document.createElement('a');
+  var date=new Date().toISOString().slice(0,10);
+  a.href=url; a.download='maria_backup_'+date+'.json';
+  document.body.appendChild(a); a.click();
+  document.body.removeChild(a); URL.revokeObjectURL(url);
+  toast('💾 Backup guardado — '+date);
+}
+
+function restoreData(input){
+  var file=input.files[0]; if(!file) return;
+  var reader=new FileReader();
+  reader.onload=function(e){
+    try{
+      var data=JSON.parse(e.target.result);
+      db=data; sdb();
+      renderAll();
+      toast('✅ Datos restaurados correctamente');
+    }catch(err){
+      toast('❌ Archivo no válido');
+    }
+    input.value='';
+  };
+  reader.readAsText(file);
+}
+
+// ── LOAD CHART.JS + SHEETJS THEN START ───────────────────────────────────────
 var chartScript=document.createElement('script');
 chartScript.src='https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js';
 chartScript.onload=function(){ ldb(); init(); buildCalendar(); };
 document.head.appendChild(chartScript);
+
+var xlsxScript=document.createElement('script');
+xlsxScript.src='https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js';
+document.head.appendChild(xlsxScript);
 
 // ── SERVICE WORKER ────────────────────────────────────────────────────────────
 if('serviceWorker' in navigator){
